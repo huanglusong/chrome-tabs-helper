@@ -22,11 +22,19 @@ const initBadgeIcon = () => {
 const updateBadgeText = () => {
     chrome.action.setBadgeText({text: tabs.length + ''});
 }
+/**
+ * 更新tab数据到第一个位置很多地方都会触发
+ * 包括activated 和 focusChage
+ * 但事件的tab参数却不同..
+ * 只能做兼容处理
+ * @param tab
+ */
 const updateTabOrderToFirst = (tab) => {
     console.log('update2First:', tab)
     let firstTab = undefined
+    let tabId = (tab && (tab.id || tab.tabId)) || undefined
     for (let i = 0; i < tabs.length; i++) {
-        if (tab && tabs[i] && tab.tabId === tabs[i].id) {
+        if (tab && tabs[i] && tabId === tabs[i].id) {
             firstTab = tabs[i]
             tabs.splice(i, 1)
             tabs.unshift(firstTab)
@@ -148,6 +156,7 @@ const initListener = () => {
                 console.log('onFocusChanged tab', tabArray);
                 if (tabArray && tabArray.length > 0) {
                     updateTabOrderToFirst(tabArray[0])
+                    updateBadgeText()
                 }
             });
         }
