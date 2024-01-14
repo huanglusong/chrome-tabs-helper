@@ -2,7 +2,12 @@ body {
     width: 300px;
     margin: 0;
 }
-
+b {
+    font-weight: bold;
+    text-decoration: underline;
+    background-color: yellow;
+    color: black;
+}
 /*设置滚动条的宽度*/
 ::-webkit-scrollbar {
     width: 6px;

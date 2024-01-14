@@ -1,15 +1,17 @@
 <script setup>
 import $ from 'jquery';
-import {ref, onMounted, nextTick, watch} from 'vue'
-import {containsIgnoreCase} from "./util/StringUtils";
+import {ref, onMounted, nextTick, watch, reactive, toRaw} from 'vue'
 import {handleTabFavicon} from "./util/ChromeUtils";
+import {fuse} from "./search/FuseSearch";
+import {optionConfig} from "./sotre";
 
 let tabs = ref([])
 let renderTabs = ref([])
+let historyRenderTabs = ref([])
 let searchText = ref('')
+let historyCache = ref(undefined)
 let currentFocusIndex = ref(0)
 let currentTab = ref(null)
-let bgMessagePort = ref(null)
 /**
  * 切换标签
  * @param item 需切换至的标签信息
@@ -24,18 +26,31 @@ const switchTab = (item) => {
  * 搜索标签
  */
 const searchTab = () => {
-  // 基于title过滤
-  // todo 算法补充
-  renderTabs.value = tabs.value.filter((item) => {
-    if (!containsIgnoreCase(item.title, searchText.value) && !item.url.includes(searchText.value)) {
-      return false;
+  // 搜索历史
+  if (searchText.value.startsWith(' ')) {
+    renderTabs.value = []
+    if (historyCache.value === undefined) {
+      chrome.history.search({text: "", maxResults: 1000000000, startTime: 0}, (result) => {
+        historyCache.value = result.filter((v) => {
+          return v.url && v.title
+        })
+        historyRenderTabs.value = fuse.searchTabArray(toRaw(historyCache.value), searchText.value.trim()).slice(0, 100)
+      })
     } else {
-      return true
+      historyRenderTabs.value = fuse.searchTabArray(toRaw(historyCache.value), searchText.value.trim()).slice(0, 100)
     }
-  })
-  // 只要触发搜索就将currentIndex重置
-  currentFocusIndex.value = 0
-  currentTab.value = renderTabs.value[0]
+  } else {
+    historyRenderTabs.value = []
+    // 搜索标签
+    renderTabs.value = fuse.searchTabArray(toRaw(tabs.value), searchText.value)
+    // console.log('搜索获取的历史记录是：',historyRenderTabs.value)
+    // 只要触发搜索就将currentIndex重置
+    currentFocusIndex.value = 0
+    if (renderTabs.value.length > 0) {
+      currentTab.value = renderTabs.value[0]
+    }
+  }
+
 }
 /**
  * 监听搜索框文本的变化，只要值变化就触发searchTab
@@ -96,11 +111,16 @@ const initTabs = () => {
     let currentTmpTab = tab[0]
     // 初始化标签数据
     chrome.runtime.sendMessage({"action": "updateTabs"}, (resp) => {
+      if (resp && resp.optionConfig) {
+        optionConfig.value = resp.optionConfig
+      }
       if (resp && resp.tabs) {
         resp.tabs.forEach((item) => {
           if (item.id !== currentTmpTab.id) {
             // favicon的处理
             item.favIconUrl = handleTabFavicon(item)
+            // 处理title
+            item.title = `${item.title}`
             tabs.value.push(item)
           }
         })
@@ -161,8 +181,16 @@ onMounted(() => {
         <img class="favio" :src="item.favIconUrl" alt="">
       </div>
       <div class="tab-text">
-        <div class="text tab-title"><span>{{ item.title }}</span></div>
-        <div class="text"><span class="">{{ item.url ? item.url : '无url信息' }}</span></div>
+        <div class="text tab-title" v-html="item.title"></div>
+        <div v-if="optionConfig.show_urls" class="text" v-html="item.url"></div>
+      </div>
+    </div>
+    <div class="history-div" v-if="historyRenderTabs.length >0 ">历史记录</div>
+    <div class="tab" v-for="(item,index) in historyRenderTabs" >
+      <div class="tab-text">
+        <div class="text tab-title" v-html="item.title"></div>
+        <div v-if="optionConfig.show_urls" class="text" v-html="item.url"></div>
+        <div class="text tab-title">上次访问时间：{{ item.lastVisitTime }}</div>
       </div>
     </div>
   </div>
@@ -265,5 +293,12 @@ span元素是一个内联元素，其默认行为是不会占据整个父级容�
   padding: 3px;
   background-color: white;
   border-radius: 5px;
+}
+
+.history-div {
+  background-color: #eeeeee;
+  /*margin: 5px;*/
+  padding: 5px;
+  text-align: center;
 }
 </style>

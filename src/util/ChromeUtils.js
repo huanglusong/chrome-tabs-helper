@@ -12,3 +12,19 @@ export const handleTabFavicon = (tab) => {
         return 'blank.png'
     }
 }
+/**
+ * 获取chrome的storage的数据
+ * @param key
+ * @returns {Promise<unknown>}
+ */
+export const getChromeStorage = (key) => {
+    return new Promise(((resolve, reject) => {
+        try {
+            chrome.storage.local.get([key], function (result) {
+                resolve(result['debug-flag'])
+            })
+        } catch (e) {
+            reject(e)
+        }
+    }))
+}
